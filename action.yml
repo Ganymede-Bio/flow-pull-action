@@ -1,0 +1,74 @@
+name: 'Flow Pull Action'
+description: 'Pull the latest version of flow code from Ganymede. This action supports pulling all flows or just a single flow.'
+inputs:
+  ENVIRONMENT:
+    description: 'The Ganymede environment to pull from'
+    required: true
+  GANYMEDE_SUBDOMAIN:
+    description: 'The Ganymede subdomain where the environment is located.'
+    required: true
+  GANYMEDE_API_TOKEN:
+    description: 'API token for authenticating with Ganymede'
+    required: true
+  FLOW_NAME:
+    description: 'If this field is set, only the specified flow will be pulled. If not set, all flows will be pulled.'
+    required: false
+  ZIP_DIRECTORY:
+    description: 'If this field is set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named ENVIRONMENT.'
+    required: false
+outputs:
+  zip_dir:  
+    description: "The full path to the zip directory where the flow was unzipped."
+    value: ${{ steps.extract-files.outputs.ZIP_DIR }}
+runs:
+  using: "composite"
+  steps:
+    - name: Set query parameter
+      shell: bash
+      id: query_param
+      run: |
+        # Optional Query parameter to filter by flow name
+        QUERY_PARAM=""
+        if [ -n "${{ inputs.flowName }}" ]; then
+          QUERY_PARAM="?flowName=${{ inputs.flowName }}"                  
+        fi
+        echo "QUERY_PARAM=$QUERY_PARAM" >> $GITHUB_ENV
+        
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Make API call to get signed URL
+      id: get_signed_url
+      shell: bash
+      run: |
+        response=$(curl -w "\n%{http_code}" --location "https://${{ inputs.GANYMEDE_SUBDOMAIN }}.ganymede.bio/v0/environment/${{ inputs.ENVIRONMENT}}/commits${{env.QUERY_PARAM}}" \
+              --header 'api-key: ${{ inputs.GANYMEDE_API_TOKEN }}')
+        status_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | sed '$ d')
+        
+        if [ "$status_code" -ne 200 ]; then
+          echo "Error: Received status code $status_code"
+          echo "Response: $body"
+          exit 1
+        fi
+        
+        SIGNED_URL=$body
+        echo "SIGNED_URL=$SIGNED_URL" >> $GITHUB_ENV
+
+    - name: Download ZIP file
+      shell: bash
+      run: |
+        curl -s -L "${{ env.SIGNED_URL }}" -o files.zip
+        echo "Downloaded zip file"
+
+    - name: Extract files
+      shell: bash
+      id: extract-files
+      run: |
+        unzip -o -q files.zip -d ${{ inputs.ZIP_DIRECTORY || inputs.ENVIRONMENT }}
+
+        # Get the full path of the zip directory
+        ZIP_DIR=$(realpath ${{ inputs.ZIP_DIRECTORY || inputs.ENVIRONMENT }})
+        echo "ZIP_DIR=${ZIP_DIR}" >> $GITHUB_OUTPUT
+        
+        rm files.zip
