@@ -90,3 +90,29 @@ jobs:
             branch: ${{ env.BRANCH_NAME }}
             base: main
 ```
+
+## Example Usage (Daily Sync)
+
+```yaml 
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+
+jobs:
+  pull-flows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull flow from Ganymede
+        uses: ganymede/flow-pull-action@v1
+        id: pull-flow
+        with:
+          environment: 'my-environment'
+          ganymede_subdomain: 'my-company'
+          ganymede_api_token: ${{ secrets.GANYMEDE_API_TOKEN }}
+          flow_name: 'my-flow'  # Optional
+
+      - name: Use extracted files
+        run: |
+          echo "Flow files were extracted to ${{ steps.pull-flow.outputs.zip_dir }}"
+```
