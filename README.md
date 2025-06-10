@@ -14,7 +14,7 @@ This action supports pulling all flows or just a single flow from a specified Ga
 | `ganymede_subdomain` | The Ganymede subdomain where the environment is located | Yes |
 | `ganymede_api_token` | API token for authenticating with Ganymede | Yes |
 | `flow_name` | If set, only the specified flow will be pulled. If not set, all flows will be pulled | No |
-| `zip_directory` | If set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named after the ENVIRONMENT | No |
+| `zip_directory` | If set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named after the environment | No |
 
 ## Outputs
 
