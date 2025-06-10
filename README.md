@@ -10,11 +10,11 @@ This action supports pulling all flows or just a single flow from a specified Ga
 
 | Input | Description | Required |
 |-------|-------------|----------|
-| `ENVIRONMENT` | The Ganymede environment to pull from | Yes |
-| `GANYMEDE_SUBDOMAIN` | The Ganymede subdomain where the environment is located | Yes |
-| `GANYMEDE_API_TOKEN` | API token for authenticating with Ganymede | Yes |
-| `FLOW_NAME` | If set, only the specified flow will be pulled. If not set, all flows will be pulled | No |
-| `ZIP_DIRECTORY` | If set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named after the ENVIRONMENT | No |
+| `environment` | The Ganymede environment to pull from | Yes |
+| `ganymede_subdomain` | The Ganymede subdomain where the environment is located | Yes |
+| `ganymede_api_token` | API token for authenticating with Ganymede | Yes |
+| `flow_name` | If set, only the specified flow will be pulled. If not set, all flows will be pulled | No |
+| `zip_directory` | If set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named after the ENVIRONMENT | No |
 
 ## Outputs
 
@@ -33,10 +33,10 @@ jobs:
         uses: ganymede/flow-pull-action@v1
         id: pull-flow
         with:
-          ENVIRONMENT: 'my-environment'
-          GANYMEDE_SUBDOMAIN: 'my-company'
-          GANYMEDE_API_TOKEN: ${{ secrets.GANYMEDE_API_TOKEN }}
-          FLOW_NAME: 'my-flow'  # Optional
+          environment: 'my-environment'
+          ganymede_subdomain: 'my-company'
+          ganymede_api_token: ${{ secrets.GANYMEDE_API_TOKEN }}
+          flow_name: 'my-flow'  # Optional
 
       - name: Use extracted files
         run: |
@@ -58,9 +58,9 @@ jobs:
         uses: ganymede/flow-pull-action@v1
         id: pull-flow
         with:
-          ENVIRONMENT: 'my-environment'
-          GANYMEDE_SUBDOMAIN: 'my-company'
-          GANYMEDE_API_TOKEN: ${{ secrets.GANYMEDE_API_TOKEN }}
+          environment: 'my-environment'
+          ganymede_subdomain: 'my-company'
+          ganymede_api_token: ${{ secrets.GANYMEDE_API_TOKEN }}
 
       - name: Commit changes
         id: commit
