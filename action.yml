@@ -11,7 +11,7 @@ inputs:
     description: 'API token for authenticating with Ganymede'
     required: true
   flow_name:
-    description: 'If this field is set, only the specified flow will be pulled. If not set, all flows will be pulled.'
+    description: 'If this field is set, only the specified flow will be pulled. If not set, all flows will be pulled. This is the flow name that is displayed in the URL.'
     required: false
   zip_directory:
     description: 'If this field is set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named ENVIRONMENT.'
