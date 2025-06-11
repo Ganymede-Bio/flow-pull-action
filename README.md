@@ -23,7 +23,7 @@ You will want to pull all of the flow contents into your repo prior to starting 
 | `zip_dir` | The full path to the directory where the flow was unzipped |
 
 ## Example Usage (Basic)
-
+The action in your repo would look like this:
 ```yaml
 jobs:
   pull-flows:
