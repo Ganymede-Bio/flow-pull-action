@@ -2,7 +2,7 @@ name: 'Flow Pull Action'
 description: 'Pull the latest version of flow code from Ganymede. This action supports pulling all flows or just a single flow.'
 inputs:
   environment:
-    description: 'The Ganymede environment to pull from'
+    description: 'The Ganymede environment to pull from. This value is shown in the URL. For example, if your Ganymede homepage has the URL https://mycompany.ganymede.bio/mycompany-dev/home, you would use mycompany-dev '
     required: true
   ganymede_subdomain:
     description: 'The Ganymede subdomain where the environment is located.'
