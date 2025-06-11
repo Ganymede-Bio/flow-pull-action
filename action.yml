@@ -14,7 +14,7 @@ inputs:
     description: 'If this field is set, only the specified flow will be pulled. If not set, all flows will be pulled. This is the flow name that is displayed in the URL.'
     required: false
   zip_directory:
-    description: 'If this field is set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named ENVIRONMENT.'
+    description: 'If this field is set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named as the environment name.'
     required: false
 outputs:
   zip_dir:  
