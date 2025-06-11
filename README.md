@@ -5,7 +5,7 @@ GitHub Action to pull the latest version of flow code from Ganymede.
 ## Description
 
 This action supports pulling all flows or just a single flow from a specified Ganymede environment. It makes an API call to retrieve a signed URL, downloads the flow code as a ZIP file, and extracts it to a specified directory.
-
+You will want to pull all of the flow contents into your repo prior to starting development, then you may want to pull the contents on a regular interval (cron) or on-demand.
 ## Inputs
 
 | Input | Description | Required |
