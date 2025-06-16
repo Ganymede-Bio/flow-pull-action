@@ -2,6 +2,8 @@
 
 GitHub Action to pull the latest version of flow code from Ganymede.
 
+This action is used as part of Ganymede's Self-Managed Repo feature. Self-managed repos allow you to host and manage your Ganymede flow code in your organization, giving you greater control over version control, CI/CD, and code governance. For more information on setting up self-managed repos, please see the [official documentation](https://docs.ganymede.bio/app/configuration/SelfManagedRepo).
+
 ## Description
 
 This action supports pulling all flows or just a single flow from a specified Ganymede environment. It makes an API call to retrieve a signed URL, downloads the flow code as a ZIP file, and extracts it to a specified directory.
