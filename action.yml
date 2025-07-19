@@ -29,8 +29,8 @@ runs:
       run: |
         # Optional Query parameter to filter by flow name
         QUERY_PARAM=""
-        if [ -n "${{ inputs.flowName }}" ]; then
-          QUERY_PARAM="?flowName=${{ inputs.flowName }}"                  
+        if [ -n "${{ inputs.flow_name }}" ]; then
+          QUERY_PARAM="?flowName=${{ inputs.flow_name }}"                  
         fi
         echo "QUERY_PARAM=$QUERY_PARAM" >> $GITHUB_ENV
         
