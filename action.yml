@@ -16,6 +16,10 @@ inputs:
   zip_directory:
     description: 'If this field is set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named as the environment name.'
     required: false
+  include_lib_files:
+    description: 'If this field is set to true, library files will be included in the download. Defaults to false.'
+    required: false
+    default: 'false'
 outputs:
   zip_dir:  
     description: "The full path to the zip directory where the flow was unzipped."
@@ -27,11 +31,27 @@ runs:
       shell: bash
       id: query_param
       run: |
-        # Optional Query parameter to filter by flow name
+        # Build query parameters
         QUERY_PARAM=""
+        SEPARATOR=""
+        
+        # Add flow name parameter if specified
         if [ -n "${{ inputs.flow_name }}" ]; then
-          QUERY_PARAM="?flowName=${{ inputs.flow_name }}"                  
+          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}flowName=${{ inputs.flow_name }}"
+          SEPARATOR="&"
         fi
+        
+        # Add includeLibFiles parameter if set to true
+        if [ "${{ inputs.include_lib_files }}" = "true" ]; then
+          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=true"
+          SEPARATOR="&"
+        fi
+        
+        # Add leading ? if we have any parameters
+        if [ -n "$QUERY_PARAM" ]; then
+          QUERY_PARAM="?$QUERY_PARAM"
+        fi
+        
         echo "QUERY_PARAM=$QUERY_PARAM" >> $GITHUB_ENV
         
     - name: Checkout repository
