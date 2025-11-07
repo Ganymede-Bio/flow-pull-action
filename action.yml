@@ -129,12 +129,21 @@ runs:
           done
         else
           # All flows mode: Sync entire directory
-          # First, remove files in target that don't exist in temp
+          # First, remove directories and files in target that don't exist in temp
           if [ -d "$TARGET_DIR" ]; then
             ORIGINAL_DIR=$(pwd)
             cd "$TARGET_DIR"
 
-            # Find all files in target
+            # Remove entire flow directories that don't exist in the new download
+            find . -mindepth 1 -maxdepth 1 -type d | while read -r dir; do
+              dir_name=$(basename "$dir")
+              if [ ! -d "$TEMP_DIR/$dir_name" ]; then
+                echo "Removing deleted flow directory: $dir_name"
+                rm -rf "$dir_name"
+              fi
+            done
+
+            # Find all remaining files in target and remove those not in temp
             find . -type f | while read -r file; do
               clean_file="${file#./}"
               if [ ! -f "$TEMP_DIR/$clean_file" ]; then
