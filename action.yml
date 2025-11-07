@@ -86,27 +86,77 @@ runs:
       id: extract-files
       run: |
         TARGET_DIR="${{ inputs.zip_directory || inputs.environment }}"
+        FLOW_NAME="${{ inputs.flow_name }}"
 
-        # Remove old files to ensure deletions in Ganymede are reflected locally
-        if [ -n "${{ inputs.flow_name }}" ]; then
-          # Single flow - remove only that flow's subdirectory if it exists
-          if [ -d "$TARGET_DIR/${{ inputs.flow_name }}" ]; then
-            echo "Removing old files for flow: ${{ inputs.flow_name }}"
-            rm -rf "$TARGET_DIR/${{ inputs.flow_name }}"
-          fi
+        # Create temp directory for extraction
+        TEMP_DIR=$(mktemp -d)
+
+        # Extract ZIP to temp directory
+        unzip -o -q files.zip -d "$TEMP_DIR"
+
+        # Create target directory if it doesn't exist
+        mkdir -p "$TARGET_DIR"
+
+        if [ -n "$FLOW_NAME" ]; then
+          # Single flow mode: Only sync the specified flow (and lib if present)
+          for dir in "$TEMP_DIR"/*; do
+            if [ -d "$dir" ]; then
+              dir_name=$(basename "$dir")
+              TARGET_SUBDIR="$TARGET_DIR/$dir_name"
+              TEMP_SUBDIR="$TEMP_DIR/$dir_name"
+
+              # If this subdirectory exists in target, clean it up
+              if [ -d "$TARGET_SUBDIR" ]; then
+                # Save current directory
+                ORIGINAL_DIR=$(pwd)
+                cd "$TARGET_SUBDIR"
+
+                # Find and remove files that don't exist in temp
+                find . -type f | while read -r file; do
+                  clean_file="${file#./}"
+                  if [ ! -f "$TEMP_SUBDIR/$clean_file" ]; then
+                    echo "Removing deleted file: $dir_name/$clean_file"
+                    rm "$file"
+                  fi
+                done
+
+                # Remove empty directories
+                find . -type d -empty -delete 2>/dev/null || true
+
+                cd "$ORIGINAL_DIR"
+              fi
+            fi
+          done
         else
-          # All flows - remove entire directory to capture deletions
+          # All flows mode: Sync entire directory
+          # First, remove files in target that don't exist in temp
           if [ -d "$TARGET_DIR" ]; then
-            echo "Removing old files from: $TARGET_DIR"
-            rm -rf "$TARGET_DIR"
+            ORIGINAL_DIR=$(pwd)
+            cd "$TARGET_DIR"
+
+            # Find all files in target
+            find . -type f | while read -r file; do
+              clean_file="${file#./}"
+              if [ ! -f "$TEMP_DIR/$clean_file" ]; then
+                echo "Removing deleted file: $clean_file"
+                rm "$file"
+              fi
+            done
+
+            # Remove empty directories
+            find . -type d -empty -delete 2>/dev/null || true
+
+            cd "$ORIGINAL_DIR"
           fi
         fi
 
-        # Extract fresh copy
-        unzip -o -q files.zip -d "$TARGET_DIR"
+        # Copy all extracted files to target (overwrites existing)
+        cp -r "$TEMP_DIR"/* "$TARGET_DIR"/
 
-        # Get the full path of the zip directory
+        # Clean up
+        rm -rf "$TEMP_DIR"
+        rm files.zip
+
+        # Get the full path of the zip directory for output
         ZIP_DIR=$(realpath "$TARGET_DIR")
         echo "ZIP_DIR=${ZIP_DIR}" >> $GITHUB_OUTPUT
-
-        rm files.zip
