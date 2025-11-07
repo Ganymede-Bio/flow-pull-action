@@ -17,7 +17,7 @@ You will want to pull all of the flow contents into your repo prior to starting 
 | `ganymede_api_token` | API token for authenticating with Ganymede | Yes |
 | `flow_name` | If set, only the specified flow will be pulled. If not set, all flows will be pulled | No |
 | `zip_directory` | If set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named after the environment | No |
-| `include_lib_files` | If set to true, code in lib/, accessible to all Flows, will be included in the download. Defaults to false | No |
+| `include_lib_files` | If set to true, code in lib/, accessible to all Flows, will be included in the download. Defaults to true | Yes |
 
 ## Outputs
 

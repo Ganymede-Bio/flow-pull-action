@@ -17,9 +17,9 @@ inputs:
     description: 'If this field is set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named as the environment name.'
     required: false
   include_lib_files:
-    description: 'If this field is set to true, library files will be included in the download. Defaults to false.'
+    description: 'If this field is set to true, code in lib/, accessible to all Flows, will be included in the download. Defaults to true.'
     required: false
-    default: 'false'
+    default: 'true'
 outputs:
   zip_dir:  
     description: "The full path to the zip directory where the flow was unzipped."
@@ -55,7 +55,7 @@ runs:
         echo "QUERY_PARAM=$QUERY_PARAM" >> $GITHUB_ENV
         
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
 
     - name: Make API call to get signed URL
       id: get_signed_url
@@ -85,10 +85,28 @@ runs:
       shell: bash
       id: extract-files
       run: |
-        unzip -o -q files.zip -d ${{ inputs.zip_directory || inputs.environment }}
+        TARGET_DIR="${{ inputs.zip_directory || inputs.environment }}"
+
+        # Remove old files to ensure deletions in Ganymede are reflected locally
+        if [ -n "${{ inputs.flow_name }}" ]; then
+          # Single flow - remove only that flow's subdirectory if it exists
+          if [ -d "$TARGET_DIR/${{ inputs.flow_name }}" ]; then
+            echo "Removing old files for flow: ${{ inputs.flow_name }}"
+            rm -rf "$TARGET_DIR/${{ inputs.flow_name }}"
+          fi
+        else
+          # All flows - remove entire directory to capture deletions
+          if [ -d "$TARGET_DIR" ]; then
+            echo "Removing old files from: $TARGET_DIR"
+            rm -rf "$TARGET_DIR"
+          fi
+        fi
+
+        # Extract fresh copy
+        unzip -o -q files.zip -d "$TARGET_DIR"
 
         # Get the full path of the zip directory
-        ZIP_DIR=$(realpath ${{ inputs.zip_directory || inputs.environment }})
+        ZIP_DIR=$(realpath "$TARGET_DIR")
         echo "ZIP_DIR=${ZIP_DIR}" >> $GITHUB_OUTPUT
-        
+
         rm files.zip
