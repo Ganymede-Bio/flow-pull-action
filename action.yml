@@ -61,7 +61,7 @@ runs:
       id: get_signed_url
       shell: bash
       run: |
-        response=$(curl -w "\n%{http_code}" --location "https://${{ inputs.ganymede_subdomain }}.ganymede.bio/v0/environment/${{ inputs.environment}}/commits${{env.QUERY_PARAM}}" \
+        response=$(curl -w "\n%{http_code}" --location "https://${{ inputs.ganymede_subdomain }}.ganymede.bio/v1/environment/${{ inputs.environment}}/commits${{env.QUERY_PARAM}}" \
               --header 'api-key: ${{ inputs.ganymede_api_token }}')
         status_code=$(echo "$response" | tail -n1)
         body=$(echo "$response" | sed '$ d')
