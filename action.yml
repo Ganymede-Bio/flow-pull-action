@@ -17,9 +17,9 @@ inputs:
     description: 'If this field is set, the flow will be unzipped to the specified directory. If not set, the flow will be unzipped to a directory named as the environment name.'
     required: false
   include_lib_files:
-    description: 'If this field is set to true, library files will be included in the download. Defaults to false.'
+    description: 'If this field is set to true, code in lib/, accessible to all Flows, will be included in the download. Defaults to true.'
     required: false
-    default: 'false'
+    default: 'true'
 outputs:
   zip_dir:  
     description: "The full path to the zip directory where the flow was unzipped."
@@ -55,7 +55,7 @@ runs:
         echo "QUERY_PARAM=$QUERY_PARAM" >> $GITHUB_ENV
         
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v5
 
     - name: Make API call to get signed URL
       id: get_signed_url
@@ -85,10 +85,87 @@ runs:
       shell: bash
       id: extract-files
       run: |
-        unzip -o -q files.zip -d ${{ inputs.zip_directory || inputs.environment }}
+        TARGET_DIR="${{ inputs.zip_directory || inputs.environment }}"
+        FLOW_NAME="${{ inputs.flow_name }}"
 
-        # Get the full path of the zip directory
-        ZIP_DIR=$(realpath ${{ inputs.zip_directory || inputs.environment }})
-        echo "ZIP_DIR=${ZIP_DIR}" >> $GITHUB_OUTPUT
-        
+        # Create temp directory for extraction
+        TEMP_DIR=$(mktemp -d)
+
+        # Extract ZIP to temp directory
+        unzip -o -q files.zip -d "$TEMP_DIR"
+
+        # Create target directory if it doesn't exist
+        mkdir -p "$TARGET_DIR"
+
+        if [ -n "$FLOW_NAME" ]; then
+          # Single flow mode: Only sync the specified flow (and lib if present)
+          for dir in "$TEMP_DIR"/*; do
+            if [ -d "$dir" ]; then
+              dir_name=$(basename "$dir")
+              TARGET_SUBDIR="$TARGET_DIR/$dir_name"
+              TEMP_SUBDIR="$TEMP_DIR/$dir_name"
+
+              # If this subdirectory exists in target, clean it up
+              if [ -d "$TARGET_SUBDIR" ]; then
+                # Save current directory
+                ORIGINAL_DIR=$(pwd)
+                cd "$TARGET_SUBDIR"
+
+                # Find and remove files that don't exist in temp
+                find . -type f | while read -r file; do
+                  clean_file="${file#./}"
+                  if [ ! -f "$TEMP_SUBDIR/$clean_file" ]; then
+                    echo "Removing deleted file: $dir_name/$clean_file"
+                    rm "$file"
+                  fi
+                done
+
+                # Remove empty directories
+                find . -type d -empty -delete 2>/dev/null || true
+
+                cd "$ORIGINAL_DIR"
+              fi
+            fi
+          done
+        else
+          # All flows mode: Sync entire directory
+          # First, remove directories and files in target that don't exist in temp
+          if [ -d "$TARGET_DIR" ]; then
+            ORIGINAL_DIR=$(pwd)
+            cd "$TARGET_DIR"
+
+            # Remove entire flow directories that don't exist in the new download
+            find . -mindepth 1 -maxdepth 1 -type d | while read -r dir; do
+              dir_name=$(basename "$dir")
+              if [ ! -d "$TEMP_DIR/$dir_name" ]; then
+                echo "Removing deleted flow directory: $dir_name"
+                rm -rf "$dir_name"
+              fi
+            done
+
+            # Find all remaining files in target and remove those not in temp
+            find . -type f | while read -r file; do
+              clean_file="${file#./}"
+              if [ ! -f "$TEMP_DIR/$clean_file" ]; then
+                echo "Removing deleted file: $clean_file"
+                rm "$file"
+              fi
+            done
+
+            # Remove empty directories
+            find . -type d -empty -delete 2>/dev/null || true
+
+            cd "$ORIGINAL_DIR"
+          fi
+        fi
+
+        # Copy all extracted files to target (overwrites existing)
+        cp -r "$TEMP_DIR"/* "$TARGET_DIR"/
+
+        # Clean up
+        rm -rf "$TEMP_DIR"
         rm files.zip
+
+        # Get the full path of the zip directory for output
+        ZIP_DIR=$(realpath "$TARGET_DIR")
+        echo "ZIP_DIR=${ZIP_DIR}" >> $GITHUB_OUTPUT
