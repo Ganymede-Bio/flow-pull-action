@@ -21,9 +21,12 @@ inputs:
     required: false
     default: 'true'
 outputs:
-  zip_dir:  
+  zip_dir:
     description: "The full path to the zip directory where the flow was unzipped."
     value: ${{ steps.extract-files.outputs.ZIP_DIR }}
+  head_sha:
+    description: "Current HEAD SHA of the main branch at time of pull."
+    value: ${{ steps.get_signed_url.outputs.HEAD_SHA }}
 runs:
   using: "composite"
   steps:
@@ -61,19 +64,21 @@ runs:
       id: get_signed_url
       shell: bash
       run: |
-        response=$(curl -w "\n%{http_code}" --location "https://${{ inputs.ganymede_subdomain }}.ganymede.bio/v0/environment/${{ inputs.environment}}/commits${{env.QUERY_PARAM}}" \
+        response=$(curl -w "\n%{http_code}" --location "https://${{ inputs.ganymede_subdomain }}.ganymede.bio/v2/environment/${{ inputs.environment}}/commits${{env.QUERY_PARAM}}" \
               --header 'api-key: ${{ inputs.ganymede_api_token }}')
         status_code=$(echo "$response" | tail -n1)
         body=$(echo "$response" | sed '$ d')
-        
+
         if [ "$status_code" -ne 200 ]; then
           echo "Error: Received status code $status_code"
           echo "Response: $body"
           exit 1
         fi
-        
-        SIGNED_URL=$body
+
+        SIGNED_URL=$(echo "$body" | jq -r '.signedUrl')
+        HEAD_SHA=$(echo "$body" | jq -r '.headSha')
         echo "SIGNED_URL=$SIGNED_URL" >> $GITHUB_ENV
+        echo "HEAD_SHA=$HEAD_SHA" >> $GITHUB_OUTPUT
 
     - name: Download ZIP file
       shell: bash
