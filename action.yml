@@ -44,11 +44,15 @@ runs:
           SEPARATOR="&"
         fi
         
-        # Add includeLibFiles parameter if set to true
+        # Always send includeLibFiles explicitly. The API defaults an omitted
+        # value to true, so omitting it when the input is false would still
+        # download lib files.
         if [ "${{ inputs.include_lib_files }}" = "true" ]; then
           QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=true"
-          SEPARATOR="&"
+        else
+          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=false"
         fi
+        SEPARATOR="&"
         
         # Add leading ? if we have any parameters
         if [ -n "$QUERY_PARAM" ]; then
