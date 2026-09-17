@@ -24,6 +24,7 @@ You will want to pull all of the flow contents into your repo prior to starting 
 | Output | Description |
 |--------|-------------|
 | `zip_dir` | The full path to the directory where the flow was unzipped |
+| `head_sha` | The Ganymede HEAD commit SHA the pulled files reflect. Persist this (e.g. write it to a file and commit it) and pass it as `base_sha` to `flow-commit-action` on deploy so a stale push is rejected with a 409 instead of silently overwriting newer changes. |
 
 ## Example Usage (Basic)
 The action in your repo would look like this:
@@ -64,6 +65,11 @@ jobs:
           environment: 'my-environment'
           ganymede_subdomain: 'my-company'
           ganymede_api_token: ${{ secrets.GANYMEDE_API_TOKEN }}
+
+      - name: Store Ganymede HEAD SHA
+        # Persist the pulled HEAD SHA so the deploy workflow can pass it as
+        # base_sha (conflict-safe push). git add . below commits it into the PR.
+        run: echo "${{ steps.pull-flow.outputs.head_sha }}" > .ganymede-sha
 
       - name: Commit changes
         id: commit
