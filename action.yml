@@ -30,46 +30,57 @@ outputs:
 runs:
   using: "composite"
   steps:
+    # Inputs are passed through `env:` and referenced as shell variables (never
+    # interpolated as ${{ }} inside run:), so a crafted value (e.g. a flow_name
+    # containing `$(...)`) cannot be executed on the runner.
     - name: Set query parameter
       shell: bash
       id: query_param
+      env:
+        FLOW_NAME: ${{ inputs.flow_name }}
+        INCLUDE_LIB_FILES: ${{ inputs.include_lib_files }}
       run: |
         # Build query parameters
         QUERY_PARAM=""
         SEPARATOR=""
-        
+
         # Add flow name parameter if specified
-        if [ -n "${{ inputs.flow_name }}" ]; then
-          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}flowName=${{ inputs.flow_name }}"
+        if [ -n "$FLOW_NAME" ]; then
+          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}flowName=${FLOW_NAME}"
           SEPARATOR="&"
         fi
-        
+
         # Always send includeLibFiles explicitly. The API defaults an omitted
         # value to true, so omitting it when the input is false would still
         # download lib files.
-        if [ "${{ inputs.include_lib_files }}" = "true" ]; then
+        if [ "$INCLUDE_LIB_FILES" = "true" ]; then
           QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=true"
         else
           QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=false"
         fi
         SEPARATOR="&"
-        
+
         # Add leading ? if we have any parameters
         if [ -n "$QUERY_PARAM" ]; then
           QUERY_PARAM="?$QUERY_PARAM"
         fi
-        
+
         echo "QUERY_PARAM=$QUERY_PARAM" >> $GITHUB_ENV
-        
+
     - name: Checkout repository
       uses: actions/checkout@v5
 
     - name: Make API call to get signed URL
       id: get_signed_url
       shell: bash
+      env:
+        GANYMEDE_SUBDOMAIN: ${{ inputs.ganymede_subdomain }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        GANYMEDE_API_TOKEN: ${{ inputs.ganymede_api_token }}
       run: |
-        response=$(curl -w "\n%{http_code}" --location "https://${{ inputs.ganymede_subdomain }}.ganymede.bio/v2/environment/${{ inputs.environment}}/commits${{env.QUERY_PARAM}}" \
-              --header 'api-key: ${{ inputs.ganymede_api_token }}')
+        # QUERY_PARAM was exported to $GITHUB_ENV by the previous step.
+        response=$(curl -w "\n%{http_code}" --location "https://${GANYMEDE_SUBDOMAIN}.ganymede.bio/v2/environment/${ENVIRONMENT}/commits${QUERY_PARAM}" \
+              --header "api-key: ${GANYMEDE_API_TOKEN}")
         status_code=$(echo "$response" | tail -n1)
         body=$(echo "$response" | sed '$ d')
 
@@ -87,15 +98,19 @@ runs:
     - name: Download ZIP file
       shell: bash
       run: |
-        curl -s -L "${{ env.SIGNED_URL }}" -o files.zip
+        # SIGNED_URL was exported to $GITHUB_ENV by the previous step.
+        curl -s -L "$SIGNED_URL" -o files.zip
         echo "Downloaded zip file"
 
     - name: Extract files
       shell: bash
       id: extract-files
+      env:
+        ZIP_DIRECTORY: ${{ inputs.zip_directory }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        FLOW_NAME: ${{ inputs.flow_name }}
       run: |
-        TARGET_DIR="${{ inputs.zip_directory || inputs.environment }}"
-        FLOW_NAME="${{ inputs.flow_name }}"
+        TARGET_DIR="${ZIP_DIRECTORY:-$ENVIRONMENT}"
 
         # Create temp directory for extraction
         TEMP_DIR=$(mktemp -d)

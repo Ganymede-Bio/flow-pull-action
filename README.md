@@ -8,6 +8,10 @@ This action is used as part of Ganymede's Self-Managed Repo feature. Self-manage
 
 This action supports pulling all flows or just a single flow from a specified Ganymede environment. It makes an API call to retrieve a signed URL, downloads the flow code as a ZIP file, and extracts it to a specified directory.
 You will want to pull all of the flow contents into your repo prior to starting development, then you may want to pull the contents on a regular interval (cron) or on-demand.
+
+## Requirements
+
+The runner must have `curl`, `unzip`, and `jq` available. GitHub-hosted Ubuntu runners include all three by default; on a minimal self-hosted runner, install `jq` (e.g. `apt-get install -y jq`) before using this action.
 ## Inputs
 
 | Input | Description | Required |
