@@ -30,22 +30,42 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
     # Inputs are passed through `env:` and referenced as shell variables (never
-    # interpolated as ${{ }} inside run:), so a crafted value (e.g. a flow_name
-    # containing `$(...)`) cannot be executed on the runner.
-    - name: Set query parameter
+    # interpolated as ${{ }} inside run:), so a crafted value cannot be executed
+    # on the runner. The query string is built as a local shell variable in this
+    # step and the signed URL is passed to the next step via a delimited step
+    # output — neither the user-controlled flow_name nor any value is ever written
+    # to $GITHUB_ENV, so a newline in an input can't inject env assignments into
+    # later steps.
+    - name: Make API call to get signed URL
+      id: get_signed_url
       shell: bash
-      id: query_param
       env:
+        GANYMEDE_SUBDOMAIN: ${{ inputs.ganymede_subdomain }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        GANYMEDE_API_TOKEN: ${{ inputs.ganymede_api_token }}
         FLOW_NAME: ${{ inputs.flow_name }}
         INCLUDE_LIB_FILES: ${{ inputs.include_lib_files }}
       run: |
-        # Build query parameters
+        # Build the query string locally (never persisted across steps).
         QUERY_PARAM=""
         SEPARATOR=""
 
-        # Add flow name parameter if specified
         if [ -n "$FLOW_NAME" ]; then
+          # Reject anything that isn't a plain flow name. The glob checks the
+          # WHOLE value (newlines included, unlike line-oriented grep): if any
+          # character is outside [A-Za-z0-9._-], fail — so a newline or shell/URL
+          # metacharacter can't break out of the query string or poison later
+          # steps.
+          case "$FLOW_NAME" in
+            *[!A-Za-z0-9._-]*)
+              echo "Error: flow_name contains invalid characters."
+              exit 1
+              ;;
+          esac
           QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}flowName=${FLOW_NAME}"
           SEPARATOR="&"
         fi
@@ -58,27 +78,11 @@ runs:
         else
           QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=false"
         fi
-        SEPARATOR="&"
 
-        # Add leading ? if we have any parameters
         if [ -n "$QUERY_PARAM" ]; then
           QUERY_PARAM="?$QUERY_PARAM"
         fi
 
-        echo "QUERY_PARAM=$QUERY_PARAM" >> $GITHUB_ENV
-
-    - name: Checkout repository
-      uses: actions/checkout@v5
-
-    - name: Make API call to get signed URL
-      id: get_signed_url
-      shell: bash
-      env:
-        GANYMEDE_SUBDOMAIN: ${{ inputs.ganymede_subdomain }}
-        ENVIRONMENT: ${{ inputs.environment }}
-        GANYMEDE_API_TOKEN: ${{ inputs.ganymede_api_token }}
-      run: |
-        # QUERY_PARAM was exported to $GITHUB_ENV by the previous step.
         response=$(curl -w "\n%{http_code}" --location "https://${GANYMEDE_SUBDOMAIN}.ganymede.bio/v2/environment/${ENVIRONMENT}/commits${QUERY_PARAM}" \
               --header "api-key: ${GANYMEDE_API_TOKEN}")
         status_code=$(echo "$response" | tail -n1)
@@ -92,13 +96,19 @@ runs:
 
         SIGNED_URL=$(echo "$body" | jq -r '.signedUrl')
         HEAD_SHA=$(echo "$body" | jq -r '.headSha')
-        echo "SIGNED_URL=$SIGNED_URL" >> $GITHUB_ENV
-        echo "HEAD_SHA=$HEAD_SHA" >> $GITHUB_OUTPUT
+        # Pass to later steps via delimited step outputs (not $GITHUB_ENV).
+        {
+          echo "SIGNED_URL<<GANYMEDE_EOF"
+          echo "$SIGNED_URL"
+          echo "GANYMEDE_EOF"
+          echo "HEAD_SHA=$HEAD_SHA"
+        } >> $GITHUB_OUTPUT
 
     - name: Download ZIP file
       shell: bash
+      env:
+        SIGNED_URL: ${{ steps.get_signed_url.outputs.SIGNED_URL }}
       run: |
-        # SIGNED_URL was exported to $GITHUB_ENV by the previous step.
         curl -s -L "$SIGNED_URL" -o files.zip
         echo "Downloaded zip file"
 
