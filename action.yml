@@ -21,72 +21,106 @@ inputs:
     required: false
     default: 'true'
 outputs:
-  zip_dir:  
+  zip_dir:
     description: "The full path to the zip directory where the flow was unzipped."
     value: ${{ steps.extract-files.outputs.ZIP_DIR }}
+  head_sha:
+    description: "Current HEAD SHA of the main branch at time of pull."
+    value: ${{ steps.get_signed_url.outputs.HEAD_SHA }}
 runs:
   using: "composite"
   steps:
-    - name: Set query parameter
-      shell: bash
-      id: query_param
-      run: |
-        # Build query parameters
-        QUERY_PARAM=""
-        SEPARATOR=""
-        
-        # Add flow name parameter if specified
-        if [ -n "${{ inputs.flow_name }}" ]; then
-          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}flowName=${{ inputs.flow_name }}"
-          SEPARATOR="&"
-        fi
-        
-        # Add includeLibFiles parameter if set to true
-        if [ "${{ inputs.include_lib_files }}" = "true" ]; then
-          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=true"
-          SEPARATOR="&"
-        fi
-        
-        # Add leading ? if we have any parameters
-        if [ -n "$QUERY_PARAM" ]; then
-          QUERY_PARAM="?$QUERY_PARAM"
-        fi
-        
-        echo "QUERY_PARAM=$QUERY_PARAM" >> $GITHUB_ENV
-        
     - name: Checkout repository
       uses: actions/checkout@v5
 
+    # Inputs are passed through `env:` and referenced as shell variables (never
+    # interpolated as ${{ }} inside run:), so a crafted value cannot be executed
+    # on the runner. The query string is built as a local shell variable in this
+    # step and the signed URL is passed to the next step via a delimited step
+    # output — neither the user-controlled flow_name nor any value is ever written
+    # to $GITHUB_ENV, so a newline in an input can't inject env assignments into
+    # later steps.
     - name: Make API call to get signed URL
       id: get_signed_url
       shell: bash
+      env:
+        GANYMEDE_SUBDOMAIN: ${{ inputs.ganymede_subdomain }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        GANYMEDE_API_TOKEN: ${{ inputs.ganymede_api_token }}
+        FLOW_NAME: ${{ inputs.flow_name }}
+        INCLUDE_LIB_FILES: ${{ inputs.include_lib_files }}
       run: |
-        response=$(curl -w "\n%{http_code}" --location "https://${{ inputs.ganymede_subdomain }}.ganymede.bio/v0/environment/${{ inputs.environment}}/commits${{env.QUERY_PARAM}}" \
-              --header 'api-key: ${{ inputs.ganymede_api_token }}')
+        # Build the query string locally (never persisted across steps).
+        QUERY_PARAM=""
+        SEPARATOR=""
+
+        if [ -n "$FLOW_NAME" ]; then
+          # Reject anything that isn't a plain flow name. The glob checks the
+          # WHOLE value (newlines included, unlike line-oriented grep): if any
+          # character is outside [A-Za-z0-9._-], fail — so a newline or shell/URL
+          # metacharacter can't break out of the query string or poison later
+          # steps.
+          case "$FLOW_NAME" in
+            *[!A-Za-z0-9._-]*)
+              echo "Error: flow_name contains invalid characters."
+              exit 1
+              ;;
+          esac
+          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}flowName=${FLOW_NAME}"
+          SEPARATOR="&"
+        fi
+
+        # Always send includeLibFiles explicitly. The API defaults an omitted
+        # value to true, so omitting it when the input is false would still
+        # download lib files.
+        if [ "$INCLUDE_LIB_FILES" = "true" ]; then
+          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=true"
+        else
+          QUERY_PARAM="${QUERY_PARAM}${SEPARATOR}includeLibFiles=false"
+        fi
+
+        if [ -n "$QUERY_PARAM" ]; then
+          QUERY_PARAM="?$QUERY_PARAM"
+        fi
+
+        response=$(curl -w "\n%{http_code}" --location "https://${GANYMEDE_SUBDOMAIN}.ganymede.bio/v2/environment/${ENVIRONMENT}/commits${QUERY_PARAM}" \
+              --header "api-key: ${GANYMEDE_API_TOKEN}")
         status_code=$(echo "$response" | tail -n1)
         body=$(echo "$response" | sed '$ d')
-        
+
         if [ "$status_code" -ne 200 ]; then
           echo "Error: Received status code $status_code"
           echo "Response: $body"
           exit 1
         fi
-        
-        SIGNED_URL=$body
-        echo "SIGNED_URL=$SIGNED_URL" >> $GITHUB_ENV
+
+        SIGNED_URL=$(echo "$body" | jq -r '.signedUrl')
+        HEAD_SHA=$(echo "$body" | jq -r '.headSha')
+        # Pass to later steps via delimited step outputs (not $GITHUB_ENV).
+        {
+          echo "SIGNED_URL<<GANYMEDE_EOF"
+          echo "$SIGNED_URL"
+          echo "GANYMEDE_EOF"
+          echo "HEAD_SHA=$HEAD_SHA"
+        } >> $GITHUB_OUTPUT
 
     - name: Download ZIP file
       shell: bash
+      env:
+        SIGNED_URL: ${{ steps.get_signed_url.outputs.SIGNED_URL }}
       run: |
-        curl -s -L "${{ env.SIGNED_URL }}" -o files.zip
+        curl -s -L "$SIGNED_URL" -o files.zip
         echo "Downloaded zip file"
 
     - name: Extract files
       shell: bash
       id: extract-files
+      env:
+        ZIP_DIRECTORY: ${{ inputs.zip_directory }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        FLOW_NAME: ${{ inputs.flow_name }}
       run: |
-        TARGET_DIR="${{ inputs.zip_directory || inputs.environment }}"
-        FLOW_NAME="${{ inputs.flow_name }}"
+        TARGET_DIR="${ZIP_DIRECTORY:-$ENVIRONMENT}"
 
         # Create temp directory for extraction
         TEMP_DIR=$(mktemp -d)
